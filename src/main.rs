@@ -13,6 +13,13 @@ fn get_battery_percentage() -> Result<f32> {
     Ok(percentage)
 }
 
+fn is_charging() -> Result<bool> {
+    let mut file = File::open("/sys/class/power_supply/BAT1/status")?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    Ok(contents.trim() == "Charging")
+}
+
 fn send_notification(summary: &str, body: &str) -> Result<()> {
     Command::new("notify-send")
         .arg("-i")
@@ -31,26 +38,29 @@ fn main() -> Result<()> {
 
     loop {
         let percentage = get_battery_percentage().unwrap();
+        let charging = is_charging().unwrap();
 
-        if percentage < 5.0 && !warned_5 {
-            send_notification("Battery Warning", "Battery is below 5%!")?;
-            warned_5 = true;
-        } else if percentage < 10.0 && !warned_10 {
-            send_notification("Battery Warning", "Battery is below 10%!")?;
-            warned_10 = true;
-        } else if percentage < 15.0 && !warned_15 {
-            send_notification("Battery Warning", "Battery is below 15%!")?;
-            warned_15 = true;
-        }
+        if !charging {
+            if percentage < 5.0 && !warned_5 {
+                send_notification("Battery Warning", "Battery is below 5%!")?;
+                warned_5 = true;
+            } else if percentage < 10.0 && !warned_10 {
+                send_notification("Battery Warning", "Battery is below 10%!")?;
+                warned_10 = true;
+            } else if percentage < 15.0 && !warned_15 {
+                send_notification("Battery Warning", "Battery is below 15%!")?;
+                warned_15 = true;
+            }
 
-        if percentage > 15.0 {
-            warned_15 = false;
-        }
-        if percentage > 10.0 {
-            warned_10 = false;
-        }
-        if percentage > 5.0 {
-            warned_5 = false;
+            if percentage > 15.0 {
+                warned_15 = false;
+            }
+            if percentage > 10.0 {
+                warned_10 = false;
+            }
+            if percentage > 5.0 {
+                warned_5 = false;
+            }
         }
 
         thread::sleep(Duration::from_secs(60));
@@ -69,4 +79,9 @@ mod tests {
         assert!(percentage >= 0.0 && percentage <= 100.0);
     }
 
+    #[test]
+    fn test_is_charging() {
+        let charging = is_charging().unwrap();
+        println!("Is charging: {}", charging);
+    }
 }
